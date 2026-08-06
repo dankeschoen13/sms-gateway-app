@@ -1,5 +1,6 @@
-from datetime import timedelta
+from datetime import timedelta, date, datetime
 from django.utils import timezone
+from django.db.models import Count
 from .models import Message
 
 def determine_department(message_body):
@@ -36,3 +37,35 @@ def is_rate_limited(sender_number):
         return True
 
     return False
+
+def prepare_breakdown(
+        start_date: date | datetime, end_date: date | datetime | None = None
+) -> tuple[int, int, dict[str, int]]:
+    """
+    Prepares breakdown of messages based on a given time period.
+
+    Returns the total processed, total blocked and the distribution of messages across categories.
+    """
+
+    if end_date:
+        messages = Message.objects.filter(timestamp__gte=start_date, timestamp__lt=end_date)
+    else:
+        messages = Message.objects.filter(timestamp__gte=start_date)
+
+    total_processed = messages.count()
+    total_blocked = messages.filter(is_blocked=True).count()
+
+    department_counts = (
+        messages
+        .filter(is_blocked=False)
+        .values('department')
+        .annotate(count=Count('id'))
+    )
+
+    breakdown = {
+        item['department']: item['count']
+        for item in department_counts
+        if item['department']
+    }
+
+    return total_processed, total_blocked, breakdown
