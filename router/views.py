@@ -1,5 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from django.db.models import Count
 from .services import determine_department, is_rate_limited
 from .models import Message
 import json
@@ -46,5 +48,40 @@ def sms_webhook(request):
             'department_routed': department,
             'message_id': message.pk
         }, status=201)
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+def daily_report(request):
+    """
+    GET endpoint returning aggregated stats for today's SMS traffic.
+    """
+    if request.method == 'GET':
+
+        today = timezone.now().date()
+        todays_messages = Message.objects.filter(timestamp__date=today)
+
+        total_processed = todays_messages.count()
+        total_blocked = todays_messages.filter(is_blocked=True).count()
+
+        department_counts = (
+            todays_messages
+            .filter(is_blocked=False)
+            .values('department')
+            .annotate(count=Count('id'))
+        )
+
+        breakdown = {
+            item['department']: item['count']
+            for item in department_counts
+            if item['department']
+        }
+
+        return JsonResponse({
+            'date': str(today),
+            'total_messages_processed': total_processed,
+            'total_rate_limit_rejections': total_blocked,
+            'department_breakdown': breakdown
+        }, status=200)
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
