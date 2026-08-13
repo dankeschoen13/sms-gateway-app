@@ -1,7 +1,6 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from django.db.models import Count
 from datetime import timedelta
 from .services import determine_department, is_rate_limited, prepare_breakdown
 from .models import Message

@@ -3,7 +3,7 @@ from django.utils import timezone
 from django.db.models import Count
 from .models import Message
 
-def determine_department(message_body):
+def determine_department(message_body: str) -> str:
     """
     Scans the message body for keywords and returns a department string.
     """
@@ -18,7 +18,7 @@ def determine_department(message_body):
 
     return "General"
 
-def is_rate_limited(sender_number):
+def is_rate_limited(sender_number: str) -> bool:
     """
     Implements a sliding window rate limit using the database.
 
