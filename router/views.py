@@ -52,42 +52,39 @@ def sms_webhook(request):
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
-def daily_report(request):
+def sms_report(request):
     """
-    GET endpoint returning aggregated stats for today's SMS traffic.
+    GET /api/sms/report/?period=daily|weekly|monthly
+    Defaults to 'daily' if no parameter is provided.
     """
     if request.method == 'GET':
 
+        period = request.GET.get('period', 'daily').lower()
         today = timezone.localdate()
 
-        total_processed, total_blocked, breakdown = prepare_breakdown(start_date=today)
-
-        return JsonResponse({
-            'date': f'{today}',
-            'total_messages_processed': total_processed,
-            'total_rate_limit_rejections': total_blocked,
-            'department_breakdown': breakdown
-        }, status=200)
-
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-def weekly_report(request):
-
-    if request.method == 'GET':
-
-        start_date = timezone.localdate() - timedelta(days=7)
+        if period == 'weekly':
+            start_date = today - timedelta(days=7)
+        elif period == 'monthly':
+            start_date = today - timedelta(days=30)
+        elif period == 'daily':
+            start_date = today
+        else:
+            return JsonResponse(
+                {'error': 'Invalid period parameter. Use daily, weekly, or monthly.'},
+                status=400
+            )
 
         total_processed, total_blocked, breakdown = prepare_breakdown(start_date=start_date)
 
         return JsonResponse({
-            'date': f'Week starting {start_date}',
+            'period': period,
+            'date': f'period starting {start_date}',
             'total_messages_processed': total_processed,
             'total_rate_limit_rejections': total_blocked,
             'department_breakdown': breakdown
         }, status=200)
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
-
 
 
 
