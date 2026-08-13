@@ -2,7 +2,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.db.models import Count
-from .services import determine_department, is_rate_limited
+from datetime import timedelta
+from .services import determine_department, is_rate_limited, prepare_breakdown
 from .models import Message
 import json
 
@@ -58,30 +59,36 @@ def daily_report(request):
     """
     if request.method == 'GET':
 
-        today = timezone.now().date()
-        todays_messages = Message.objects.filter(timestamp__date=today)
+        today = timezone.localdate()
 
-        total_processed = todays_messages.count()
-        total_blocked = todays_messages.filter(is_blocked=True).count()
-
-        department_counts = (
-            todays_messages
-            .filter(is_blocked=False)
-            .values('department')
-            .annotate(count=Count('id'))
-        )
-
-        breakdown = {
-            item['department']: item['count']
-            for item in department_counts
-            if item['department']
-        }
+        total_processed, total_blocked, breakdown = prepare_breakdown(start_date=today)
 
         return JsonResponse({
-            'date': str(today),
+            'date': f'{today}',
             'total_messages_processed': total_processed,
             'total_rate_limit_rejections': total_blocked,
             'department_breakdown': breakdown
         }, status=200)
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+def weekly_report(request):
+
+    if request.method == 'GET':
+
+        start_date = timezone.localdate() - timedelta(days=7)
+
+        total_processed, total_blocked, breakdown = prepare_breakdown(start_date=start_date)
+
+        return JsonResponse({
+            'date': f'Week starting {start_date}',
+            'total_messages_processed': total_processed,
+            'total_rate_limit_rejections': total_blocked,
+            'department_breakdown': breakdown
+        }, status=200)
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+
+
