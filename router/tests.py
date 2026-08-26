@@ -1,5 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.utils import timezone
+from datetime import timedelta
 from .models import Message
 import json
 
@@ -145,4 +147,76 @@ class SMSWebhookTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()['error'], 'Invalid JSON payload')
         self.assertIsNone(Message.objects.first())
+
+class SMSReportTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        """
+        Heavy Database I/O: Runs exactly ONCE per class. Class method named "setUpTestData"
+        is automatically executed by Django Testing Framework
+        """
+        today = timezone.now()
+        five_days_ago = today - timedelta(days=5)
+        twenty_days_ago = today - timedelta(days=20)
+
+        messages_to_create = [
+            Message(
+                sender_number="+10000000001",
+                message_body="help me",
+                department="Support"
+            ),
+            Message(
+                sender_number="+10000000002",
+                message_body="billing issue",
+                department="Billing"
+            ),
+            Message(
+                sender_number="+10000000003",
+                message_body="cancel my account",
+                department="Cancellations"
+            )
+        ]
+
+        Message.objects.bulk_create(messages_to_create)
+
+        # auto_now_add date override
+        Message.objects.filter(department="Billing").update(timestamp=five_days_ago)
+        Message.objects.filter(department="Cancellations").update(timestamp=twenty_days_ago)
+
+    def setUp(self):
+        self.client = Client()
+        self.url = reverse('sms_report')
+
+    def test_daily_report_only_counts_today(self):
+
+        response = self.client.get(self.url, data={'period': 'daily'})
+        data = response.json()
+
+        # Should only see the 1 message from today
+        self.assertEqual(data['total_messages_processed'], 1)
+        self.assertIn('Support', data['department_breakdown'])
+        self.assertNotIn('Billing', data['department_breakdown'])
+
+    def test_weekly_report_includes_last_five_days(self):
+
+        response = self.client.get(self.url, data={'period': 'weekly'})
+        data = response.json()
+
+        # Should see today (1) + 5 days ago (1) = 2 total
+        self.assertEqual(data['total_messages_processed'], 2)
+        self.assertEqual(data['department_breakdown']['Support'], 1)
+        self.assertEqual(data['department_breakdown']['Billing'], 1)
+        self.assertNotIn('Cancellations', data['department_breakdown'])
+
+    def test_monthly_report_includes_all_records(self):
+
+        response = self.client.get(self.url, data={'period': 'monthly'})
+        data = response.json()
+
+        # Should see all 3 messages
+        self.assertEqual(data['total_messages_processed'], 3)
+        self.assertEqual(data['department_breakdown']['Cancellations'], 1)
+
+
 
