@@ -48,9 +48,14 @@ def prepare_breakdown(
     """
 
     if end_date:
-        messages = Message.objects.filter(timestamp__gte=start_date, timestamp__lt=end_date)
+        messages = Message.objects.filter(
+            timestamp__date__gte=start_date,
+            timestamp__date__lt=end_date
+        )
     else:
-        messages = Message.objects.filter(timestamp__gte=start_date)
+        messages = Message.objects.filter(
+            timestamp__date__gte=start_date
+        )
 
     total_processed = messages.count()
     total_blocked = messages.filter(is_blocked=True).count()
