@@ -51,7 +51,6 @@ def sms_webhook(request):
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
-
 def sms_report(request):
     """
     GET /api/sms/report/?period=daily|weekly|monthly
