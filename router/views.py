@@ -4,6 +4,9 @@ from django.utils import timezone
 from datetime import timedelta
 from .services import determine_department, is_rate_limited, prepare_breakdown
 from .models import Message
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 import json
 
 
@@ -51,6 +54,22 @@ def sms_webhook(request):
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
+
+@extend_schema(
+    summary="Retrieve SMS routing statistics",
+    description="Generates an aggregated report of processed and rate-limited messages over a rolling time window.",
+    parameters=[
+        OpenApiParameter(
+            name='period',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="The rolling time window for the report. Defaults to 'daily'.",
+            enum=['daily', 'weekly', 'monthly'],
+            default='daily',
+        )
+    ]
+)
+@api_view(['GET'])
 def sms_report(request):
     """
     GET /api/sms/report/?period=daily|weekly|monthly
@@ -68,22 +87,22 @@ def sms_report(request):
         elif period == 'daily':
             start_date = today
         else:
-            return JsonResponse(
+            return Response(
                 {'error': 'Invalid period parameter. Use daily, weekly, or monthly.'},
                 status=400
             )
 
         total_processed, total_blocked, breakdown = prepare_breakdown(start_date=start_date)
 
-        return JsonResponse({
+        return Response({
             'period': period,
-            'date': f'period starting {start_date}',
+            'start_date': start_date,
             'total_messages_processed': total_processed,
             'total_rate_limit_rejections': total_blocked,
             'department_breakdown': breakdown
         }, status=200)
 
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
+    return Response({'error': 'Method not allowed'}, status=405)
 
 
 
