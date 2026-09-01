@@ -2,49 +2,15 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample, inline_serializer
-from rest_framework import serializers
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .services import determine_department, is_rate_limited, prepare_breakdown
 from .models import Message
+from .serializers import WebhookPayloadSerializer
+from .docs import webhook_swagger_doc
 
 
-@extend_schema(
-    summary="Receive incoming SMS (Webhook)",
-    description="Endpoint for the SMS provider to push incoming messages.",
-    request=inline_serializer(
-        name='WebhookPayload',
-        fields={
-            'sender': serializers.CharField(),
-            'message': serializers.CharField(),
-        }
-    ),
-    examples=[
-        OpenApiExample(
-            'Valid Payload',
-            value={'sender_number': '+639123456789', 'message_body': 'Hello support!'},
-            request_only=True
-        )
-    ],
-    responses={
-        201: inline_serializer(
-            name='WebhookSuccess',
-            fields={'status': serializers.CharField(default='success')}
-        ),
-        400: inline_serializer(
-            name='WebhookError',
-            fields={'error': serializers.CharField(default='Missing required fields')}
-        ),
-        429: inline_serializer(
-            name='WebhookTooManyRequests',
-            fields={'error': serializers.CharField(default='Too Many Requests')}
-        ),
-        405: inline_serializer(
-            name='WebhookInvalidMethod',
-            fields={'error': serializers.CharField(default='Method not allowed')}
-        )
-    }
-)
+@webhook_swagger_doc
 @api_view(['POST'])
 @csrf_exempt
 def sms_webhook(request):
