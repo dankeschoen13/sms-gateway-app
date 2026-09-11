@@ -1,14 +1,14 @@
-from django.test import TestCase, Client
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
+from rest_framework.test import APIClient
 from .models import Message
-import json
 
 class SMSWebhookTests(TestCase):
 
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient() # UPGRADED from standard django Client()
         self.url = reverse('sms_webhook')
 
     def test_successful_message_and_routing(self):
@@ -20,21 +20,15 @@ class SMSWebhookTests(TestCase):
             "message_body": "I need help with my invoice."
         }
 
-        response = self.client.post(
-            self.url,
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+        response = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, 201)
 
         response_data = response.json()
-
         self.assertEqual(response_data['status'], 'success')
         self.assertEqual(response_data['department_routed'], 'Billing')
 
         saved_message = Message.objects.first()
-
         self.assertIsInstance(saved_message, Message)
         self.assertEqual(saved_message.department, 'Billing')
         self.assertFalse(saved_message.is_blocked)
@@ -49,27 +43,16 @@ class SMSWebhookTests(TestCase):
             "message_body": "Spam message"
         }
 
-        # Send 5 valid requests
         for i in range(5):
-            response = self.client.post(
-                self.url,
-                data=json.dumps(payload),
-                content_type='application/json'
-            )
+            response = self.client.post(self.url, payload, format='json')
             self.assertEqual(response.status_code, 201)
 
-        # The 6th request should be blocked
-        response_blocked = self.client.post(
-            self.url,
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+        response_blocked = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response_blocked.status_code, 429)
         self.assertEqual(response_blocked.json()['error'], 'Too Many Requests')
 
         latest_message = Message.objects.filter(sender_number="+19999999999").last()
-
         self.assertIsInstance(latest_message, Message)
         self.assertTrue(latest_message.is_blocked)
         self.assertEqual(Message.objects.count(), 6)
@@ -78,16 +61,8 @@ class SMSWebhookTests(TestCase):
         """
         Test the route sends an error if the message_body is missing
         """
-
-        payload = {
-            "sender_number": "+19999999999"
-        }
-
-        response = self.client.post(
-            self.url,
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+        payload = {"sender_number": "+19999999999"}
+        response = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()['error'], 'Missing required fields')
@@ -97,16 +72,8 @@ class SMSWebhookTests(TestCase):
         """
         Test the route sends an error if the sender_number is missing
         """
-
-        payload = {
-            "message_body": "Spam message"
-        }
-
-        response = self.client.post(
-            self.url,
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+        payload = {"message_body": "Spam message"}
+        response = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()['error'], 'Missing required fields')
@@ -121,23 +88,19 @@ class SMSWebhookTests(TestCase):
             "message_body": "Spam message"
         }
 
-        response = self.client.patch(
-            self.url,
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+        response = self.client.patch(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, 405)
-        self.assertEqual(response.json()['error'], 'Method not allowed')
+        self.assertIn('detail', response.json())
         self.assertIsNone(Message.objects.first())
 
     def test_invalid_json_payload(self):
         """
         Test that malformed JSON is caught and returns a 400 Bad Request.
         """
-
         bad_json_string = '{"sender_number": "+1234567890", message_body: oops'
 
+        # We must manually set content_type here to force the bad string through
         response = self.client.post(
             self.url,
             data=bad_json_string,
@@ -145,7 +108,7 @@ class SMSWebhookTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()['error'], 'Invalid JSON payload')
+        self.assertIn('detail', response.json())
         self.assertIsNone(Message.objects.first())
 
 class SMSReportTests(TestCase):
@@ -185,7 +148,7 @@ class SMSReportTests(TestCase):
         Message.objects.filter(department="Cancellations").update(timestamp=twenty_days_ago)
 
     def setUp(self):
-        self.client = Client()
+        self.client = APIClient()
         self.url = reverse('sms_report')
 
     def test_daily_report_only_counts_today(self):
@@ -218,5 +181,16 @@ class SMSReportTests(TestCase):
         self.assertEqual(data['total_messages_processed'], 3)
         self.assertEqual(data['department_breakdown']['Cancellations'], 1)
 
+    def test_invalid_method(self):
+        """
+        Test the route sends an error if the request method is invalid
+        """
+        payload = {
+            "sender_number": "+19999999999",
+            "message_body": "Spam message"
+        }
 
+        response = self.client.patch(self.url, payload, format='json')
 
+        self.assertEqual(response.status_code, 405)
+        self.assertIn('detail', response.json())

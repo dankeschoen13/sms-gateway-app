@@ -6,7 +6,7 @@ from datetime import timedelta
 from .services import determine_department, is_rate_limited, prepare_breakdown
 from .serializers import WebhookPayloadSerializer
 from .models import Message
-from .docs import webhook_swagger_doc, report_swagger_doc  # Updated to relative import
+from .docs import webhook_swagger_doc, report_swagger_doc
 
 
 @webhook_swagger_doc
