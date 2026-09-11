@@ -87,11 +87,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'sms_gateway_db',      # The name of the DB you created
-        'USER': 'postgres',            # Your local postgres username (often 'postgres')
-        'PASSWORD': '',
-        'HOST': '127.0.0.1',           # localhost
-        'PORT': '5432',                # Default postgres port
+        'NAME': os.environ.get('DB_NAME', 'sms_gateway_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
