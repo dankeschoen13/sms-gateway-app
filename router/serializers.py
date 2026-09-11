@@ -10,7 +10,6 @@ from drf_spectacular.utils import extend_schema_serializer, OpenApiExample
         )
     ]
 )
-
 class WebhookPayloadSerializer(serializers.Serializer):
     sender_number = serializers.CharField(required=True)
     message_body = serializers.CharField(required=True)
